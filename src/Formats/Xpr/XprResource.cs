@@ -239,6 +239,19 @@ namespace UIXTool.Formats.Xpr
                 case XprTextureFormat.LU_IMAGE_A8R8G8B8:
                     Buffer.BlockCopy(resourceData, 0, bmp, 0, resourceData.Length);
                     break;
+                case XprTextureFormat.SZ_R8G8B8A8:
+                    {
+                        // unswizzle
+                        UnswizzleRect(resourceData, Width, Height, bmp, Width * 4, 4);
+
+                        // convert RGBA to ARGB
+                        for (int i = 0; i < resourceData.Length; i += 4)
+                        {
+                            (bmp[i], bmp[i + 1], bmp[i + 2], bmp[i + 3]) =
+                                (bmp[i + 3], bmp[i], bmp[i + 1], bmp[i + 2]);
+                        }
+                    }
+                    break;
                 case XprTextureFormat.SZ_A8B8G8R8:
                     {
                         // unswizzle
@@ -470,6 +483,7 @@ namespace UIXTool.Formats.Xpr
                 case XprTextureFormat.LU_IMAGE_A8R8G8B8:
                 case XprTextureFormat.LU_IMAGE_X8R8G8B8:
                 case XprTextureFormat.SZ_A8B8G8R8:
+                case XprTextureFormat.SZ_R8G8B8A8:
                 case XprTextureFormat.LU_IMAGE_A8B8G8R8:
                     return width * height * 4;
                 default: throw new NotSupportedException();

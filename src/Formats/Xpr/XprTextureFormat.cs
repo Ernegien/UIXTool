@@ -22,6 +22,7 @@
         LU_IMAGE_X8R8G8B8 = 0x1E,
         LU_IMAGE_DEPTH_Y16_FIXED = 0x30,
         SZ_A8B8G8R8 = 0x3A,
+        SZ_R8G8B8A8 = 0x3C,
         LU_IMAGE_A8B8G8R8 = 0x3F
     }
 }
