@@ -92,7 +92,7 @@ namespace UIXTool.Formats.Uix
             // parse the xpr if available
             if (EntryMetaDataSize != -1)
             {
-                Xpr = new Xpr.Xpr(this, null, stream, metaDataBaseOffset + EntryMetaDataSize);
+                Xpr = new Xpr.Xpr(this, parent.Path, metaDataBaseOffset + EntryMetaDataSize);
             }
 
             // parse the meta data

@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using SixLabors.ImageSharp.PixelFormats;
+using System.Runtime.CompilerServices;
 using System.Text;
 using UIXTool.Extensions;
 using UIXTool.IO;
@@ -181,6 +182,12 @@ namespace UIXTool.Formats.Xpr
             Parent = parent;
             if (position != null) stream.Position = position.Value;
             StreamPosition = stream.Position;
+            Initialize(stream);
+        }
+
+        private void Initialize(EndianStream stream)
+        {
+            stream.Position = StreamPosition;
             Common = stream.Read<uint>();
 
             // skip vertex buffer stuff for now (half life 2 loader xpr)
@@ -245,7 +252,7 @@ namespace UIXTool.Formats.Xpr
                         UnswizzleRect(resourceData, Width, Height, bmp, Width * 4, 4);
 
                         // convert RGBA to ARGB
-                        for (int i = 0; i < resourceData.Length; i += 4)
+                        for (int i = 0; i < bmp.Length; i += 4)
                         {
                             (bmp[i], bmp[i + 1], bmp[i + 2], bmp[i + 3]) =
                                 (bmp[i + 3], bmp[i], bmp[i + 1], bmp[i + 2]);
@@ -455,7 +462,8 @@ namespace UIXTool.Formats.Xpr
             es.Write(bmp, 0, bmp.Length);                   // pixel data
             es.Flush();
 
-            // store the image for later
+            // store the image for later, disposing any pre-existing
+            Image?.Dispose();
             Image = new Bitmap(ms);
         }
 
@@ -788,12 +796,64 @@ namespace UIXTool.Formats.Xpr
             return r << 16 | g << 8 | b | a << 24;
         }
 
+        public void UpdateTexture(string imgPath)
+        {
+            // only support texture types for now
+            if (Type != XprResourceType.Texture)
+                throw new NotSupportedException();
+
+            // load the image as A8R8G8B8 (in-memory orientation) and assert matching dimensions
+            using var img = SixLabors.ImageSharp.Image.Load<Bgra32>(imgPath);
+            if (img.Width != Width || img.Height != Height)
+                throw new NotSupportedException("Image dimension mismatch.");
+
+            // get its pixel data
+            byte[] bmp = new byte[Width * Height * 4];
+            img.CopyPixelDataTo(bmp);
+
+            // perform the conversion to the current texture format
+            byte[] converted = new byte[CalculateTextureDataSize(TextureFormat, (int)Width, (int)Height)];
+            switch (TextureFormat)
+            {
+                case XprTextureFormat.LU_IMAGE_A8R8G8B8:
+                case XprTextureFormat.LU_IMAGE_X8R8G8B8:
+                    converted = bmp;
+                    break;
+                case XprTextureFormat.SZ_A8R8G8B8:
+                case XprTextureFormat.SZ_X8R8G8B8:
+                    SwizzleRect(bmp, Width, Height, converted, Width * 4, 4);
+                    break;
+                case XprTextureFormat.LU_IMAGE_A8B8G8R8:
+                    for (int i = 0; i < bmp.Length; i += 4)
+                    {
+                        (bmp[i + 1], bmp[i + 3]) = (bmp[i + 3], bmp[i + 1]);
+                    }
+                    converted = bmp;
+                    break;
+                case XprTextureFormat.SZ_A8B8G8R8:
+                    for (int i = 0; i < bmp.Length; i += 4)
+                    {
+                        (bmp[i + 1], bmp[i + 3]) = (bmp[i + 3], bmp[i + 1]);
+                    }
+                    SwizzleRect(bmp, Width, Height, converted, Width * 4, 4);
+                    break;
+
+                // TODO: implement the rest
+                default: throw new NotSupportedException();
+            }
+
+            // update the texture data
+            using var fs = File.Open(Parent.Path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+            using EndianStream stream = new EndianStream(fs);
+            stream.Write(DataPosition, converted);
+
+            // reload resource
+            Initialize(stream);
+        }
+
         public void Dispose()
         {
-            if (Image != null)
-            {
-                Image.Dispose();
-            }
+            Image?.Dispose();
         }
     }
 }

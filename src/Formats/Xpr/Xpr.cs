@@ -16,7 +16,7 @@ namespace UIXTool.Formats.Xpr
 
         public UixItem? Parent { get; private set; }
         public long StreamPosition { get; private set; }
-        public string? Path { get; private set; }
+        public string Path { get; private set; }
 
         public string Magic { get; private set; }
         public int TotalSize {  get; private set; }
@@ -44,13 +44,16 @@ namespace UIXTool.Formats.Xpr
             }
         }
 
-        public Xpr(UixItem? parent, string? path, EndianStream stream, long? position = null)
+        public Xpr(UixItem? parent, string path, long? position = null)
         {
             Parent = parent;
-            Path = path;
+            Path = path ?? throw new ArgumentNullException(nameof(path));
+
+            using var fs = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var stream = new EndianStream(fs);
+
             if (position != null) stream.Position = position.Value;
             StreamPosition = stream.Position;
-
             Magic = stream.ReadAscii(4);
             Assert.LogDebug(Magic.Equals("XPR0"), "Invalid XPR header magic.");    // TODO: there's other XPR formats (XPR1 etc.) as well
             TotalSize = stream.Read<int>();

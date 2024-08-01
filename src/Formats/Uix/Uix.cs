@@ -38,10 +38,11 @@ namespace UIXTool.Formats.Uix
             }
         }
 
-        public Uix(string path, EndianStream stream, long? position = null)
+        public Uix(string path)
         {
-            Path = path;
-            if (position != null) stream.Position = position.Value;
+            Path = path ?? throw new ArgumentNullException(nameof(path));
+
+            using var stream = new EndianStream(File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read));
             StreamPosition = stream.Position;
 
             Magic = stream.ReadAscii(4);

@@ -1,7 +1,6 @@
 using UIXTool.Extensions;
 using UIXTool.Formats.Uix;
 using UIXTool.Formats.Xpr;
-using UIXTool.IO;
 
 namespace UIXTool.Forms
 {
@@ -56,8 +55,7 @@ namespace UIXTool.Forms
         private void LoadUix(string path)
         {
             // parse the file
-            using var fs = File.OpenRead(path);
-            var uix = new Uix(path, new EndianStream(fs));
+            var uix = new Uix(path);
 
             var uixNode = tvContents.Nodes.Add(uix.Name, uix.ToolTip, uix);
             foreach (var item in uix.Items)
@@ -69,7 +67,7 @@ namespace UIXTool.Forms
                     foreach (var resource in item.Xpr.Resources)
                     {
                         var resourceNode = xprNode.Nodes.Add(resource.Name, resource.ToolTip, resource);
-                        AddTreeViewExportContextMenu(resourceNode);
+                        BuildTreeViewContextMenu(resourceNode);
                     }
                 }
             }
@@ -78,8 +76,7 @@ namespace UIXTool.Forms
         private void LoadXpr(string path)
         {
             // parse the file
-            using var fs = File.OpenRead(path);
-            var xpr = new Xpr(null, path, new EndianStream(fs));
+            var xpr = new Xpr(null, path);
 
             // add the root xpr node
             var xprNode = tvContents.Nodes.Add(xpr.Name, xpr.ToolTip, xpr);
@@ -93,18 +90,83 @@ namespace UIXTool.Forms
                 // only support exporting 2D textures for now
                 if (resource.Type == XprResourceType.Texture && resource.TextureDimensions == 2)
                 {
-                    AddTreeViewExportContextMenu(rsrcNode);
+                    BuildTreeViewContextMenu(rsrcNode);
                 }
             }
         }
 
-        private void AddTreeViewExportContextMenu(TreeNode node)
+        private void BuildTreeViewContextMenu(TreeNode node)
         {
-            ContextMenuStrip ctxExport = new ContextMenuStrip();
-            ctxExport.ItemClicked += ExportOnClick;
-            var export = ctxExport.Items.Add("Export");
-            export.Tag = node.Tag;
-            node.ContextMenuStrip = ctxExport;
+            ContextMenuStrip ctxMenu = new ContextMenuStrip();
+
+            if (node.Tag is XprResource rsrc)
+            {
+                var exportItem = new ToolStripMenuItem("Export", null, TreeViewItemClick);
+                exportItem.Tag = node.Tag;
+                ctxMenu.Items.Add(exportItem);
+
+                // for now, basic guard against unsupported formats
+                if (rsrc.TextureFormat == XprTextureFormat.LU_IMAGE_A8R8G8B8 ||
+                    rsrc.TextureFormat == XprTextureFormat.LU_IMAGE_X8R8G8B8 ||
+                    rsrc.TextureFormat == XprTextureFormat.SZ_A8R8G8B8 ||
+                    rsrc.TextureFormat == XprTextureFormat.SZ_X8R8G8B8 ||
+                    rsrc.TextureFormat == XprTextureFormat.LU_IMAGE_A8B8G8R8 ||
+                    rsrc.TextureFormat == XprTextureFormat.SZ_A8B8G8R8
+                    )
+                {
+                    var updateItem = new ToolStripMenuItem("Update", null, TreeViewItemClick);
+                    updateItem.Tag = node.Tag;
+                    ctxMenu.Items.Add(updateItem);
+                }
+            }
+
+            node.ContextMenuStrip = ctxMenu;
+        }
+
+        private void TreeViewItemClick(object? sender, EventArgs e)
+        {
+            if (sender is ToolStripMenuItem menuItem)
+            {
+                switch (menuItem.Tag)
+                {
+                    case XprResource texture:
+                        {
+                            if (menuItem.Text == "Export")
+                            {
+                                using SaveFileDialog sfd = new SaveFileDialog();
+                                sfd.Filter = "PNG|*.png";
+                                if (sfd.ShowDialog() != DialogResult.OK)
+                                    break;
+
+                                texture.Image?.Save(sfd.FileName, System.Drawing.Imaging.ImageFormat.Png);
+                            }
+                            else if (menuItem.Text == "Update")
+                            {
+                                using OpenFileDialog ofd = new OpenFileDialog();
+                                ofd.Filter = "PNG|*.png";
+                                if (ofd.ShowDialog() != DialogResult.OK)
+                                    break;
+
+                                texture.UpdateTexture(ofd.FileName);
+                                viewerImage.BackgroundImage = texture.Image;
+                            }
+                        }
+
+                        break;
+                    case Xpr xpr:
+
+                        break;
+                    case Uix uix:
+
+                        break;
+                    case UixItem uixItem:
+
+                        break;
+                    default:
+
+                        break;
+                }
+            }
         }
 
         // update viewer/meta tab contents based on selection
@@ -134,37 +196,6 @@ namespace UIXTool.Forms
                 case UixItem uixItem:
                     break;
                 default:
-                    break;
-            }
-        }
-
-        // TODO: extract textures and metadata
-        private void ExportOnClick(object? sender, ToolStripItemClickedEventArgs e)
-        {
-            switch (e.ClickedItem?.Tag)
-            {
-                case Xpr xpr:
-
-                    break;
-                case XprResource texture:
-                    {
-                        using SaveFileDialog sfd = new SaveFileDialog();
-                        sfd.Filter = "PNG|*.png";
-                        if (sfd.ShowDialog() != DialogResult.OK)
-                            break;
-
-                        texture.Image?.Save(sfd.FileName, System.Drawing.Imaging.ImageFormat.Png);
-                    }
-
-                    break;
-                case Uix uix:
-
-                    break;
-                case UixItem uixItem:
-
-                    break;
-                default:
-
                     break;
             }
         }
